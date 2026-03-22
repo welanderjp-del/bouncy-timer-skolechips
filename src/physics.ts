@@ -12,12 +12,18 @@ export interface PhysicsEngine {
   resetHatch: () => void;
   removeHatch: () => void;
   clearParticles: () => void;
+  isHatchOpen: () => boolean;
+  getParticles: () => Matter.Body[];
+  getSpawnedCount: () => number;
+  getWidth: () => number;
+  getHeight: () => number;
+  addParticles: (particles: Matter.Body[], shiftX: number) => void;
   destroy: () => void;
 }
 
 const COLORS = ['#fb7185', '#38bdf8', '#fbbf24', '#34d399', '#818cf8'];
 
-export const initPhysics = (container: HTMLElement): PhysicsEngine => {
+export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0): PhysicsEngine => {
   const { Engine, Render, Runner, Bodies, Composite, World, Common } = Matter;
 
   const engine = Engine.create();
@@ -136,7 +142,7 @@ export const initPhysics = (container: HTMLElement): PhysicsEngine => {
   render.bounds.min.y = 0;
   render.bounds.max.y = height;
 
-  let particlesSpawned = 0;
+  let particlesSpawned = initialParticlesSpawned;
 
   const updateZoom = (scale: number) => {
     const centerX = width / 2;
@@ -241,11 +247,42 @@ export const initPhysics = (container: HTMLElement): PhysicsEngine => {
     }
   };
 
+  const isHatchOpen = () => {
+    const allBodies = Composite.allBodies(engine.world);
+    return !allBodies.includes(hatch);
+  };
+
   const clearParticles = () => {
     const allBodies = Composite.allBodies(engine.world);
     const particles = allBodies.filter(body => !body.isStatic);
     Composite.remove(engine.world, particles);
     particlesSpawned = 0;
+  };
+
+  const getParticles = () => {
+    return Composite.allBodies(engine.world).filter(body => !body.isStatic);
+  };
+
+  const getSpawnedCount = () => {
+    return particlesSpawned;
+  };
+
+  const getWidth = () => {
+    return width;
+  };
+  
+  const getHeight = () => {
+    return height;
+  };
+
+  const addParticles = (particles: Matter.Body[], shiftX: number) => {
+    particles.forEach(p => {
+      Matter.Body.setPosition(p, {
+        x: p.position.x + shiftX,
+        y: p.position.y
+      });
+    });
+    World.add(engine.world, particles);
   };
 
   const destroy = () => {
@@ -268,7 +305,13 @@ export const initPhysics = (container: HTMLElement): PhysicsEngine => {
     spawnParticle,
     removeHatch,
     resetHatch,
+    isHatchOpen,
     clearParticles,
+    getParticles,
+    getSpawnedCount,
+    getWidth,
+    getHeight,
+    addParticles,
     destroy
   };
 };

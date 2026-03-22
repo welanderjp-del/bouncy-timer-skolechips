@@ -9,6 +9,7 @@ export default function App() {
   const [timeLeft, setTimeLeft] = useState(120); // Default to 2:00
   const [isActive, setIsActive] = useState(false);
   const [initialTime, setInitialTime] = useState(120);
+  const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const spawnIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const spawnedCountRef = useRef(0);
 
@@ -54,11 +55,24 @@ export default function App() {
 
     const handleResize = () => {
       if (physicsRef.current && canvasRef.current) {
+        const oldWidth = physicsRef.current.getWidth();
+        const particles = physicsRef.current.getParticles();
+        const spawnedCount = physicsRef.current.getSpawnedCount();
+        const wasHatchOpen = physicsRef.current.isHatchOpen();
+        
         physicsRef.current.destroy();
-        physicsRef.current = initPhysics(canvasRef.current);
-        if (isActive) {
+        physicsRef.current = initPhysics(canvasRef.current, spawnedCount);
+        
+        const newWidth = canvasRef.current.clientWidth;
+        const shiftX = (newWidth - oldWidth) / 2;
+        
+        physicsRef.current.addParticles(particles, shiftX);
+        
+        if (wasHatchOpen) {
           physicsRef.current.removeHatch();
         }
+        
+        setWindowSize({ width: newWidth, height: canvasRef.current.clientHeight });
       }
     };
 
@@ -119,21 +133,27 @@ export default function App() {
     }
   };
 
-  // Dynamic spawn rate: adjusts based on current timeLeft
-  // We want to reach ~1200 particles by the end to ensure complete overflow.
+  // Dynamic spawn rate: adjusts based on current timeLeft and window size
   useEffect(() => {
     if (isActive && timeLeft > 0) {
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
       
-      const targetTotal = 1200;
+      // Calculate target total based on canvas area
+      // Base target of 2200 for a 1200x800 area to ensure overflow
+      const width = physicsRef.current?.getWidth() || window.innerWidth;
+      const height = physicsRef.current?.getHeight() || window.innerHeight;
+      const area = width * height;
+      const baseArea = 1200 * 800;
+      const targetTotal = Math.max(800, Math.floor((area / baseArea) * 2200));
+      
       const remainingToSpawn = Math.max(1, targetTotal - spawnedCountRef.current);
       
-      // Calculate interval to spread remaining particles over remaining time
-      const interval = (timeLeft * 1000) / remainingToSpawn;
+      // Aim to reach target at 80% of the remaining time to ensure overflow
+      const interval = (timeLeft * 0.8 * 1000) / remainingToSpawn;
       
-      // Cap the interval to ensure it's not too slow (max 5 seconds) 
-      // and not too fast (min 20ms)
-      const clampedInterval = Math.min(5000, Math.max(20, interval));
+      // Cap the interval to ensure it's not too slow (max 100ms for steady flow)
+      // and not too fast (min 15ms)
+      const clampedInterval = Math.min(100, Math.max(15, interval));
 
       spawnIntervalRef.current = setInterval(() => {
         if (spawnedCountRef.current < targetTotal) {
@@ -157,7 +177,7 @@ export default function App() {
         spawnIntervalRef.current = null;
       }
     };
-  }, [isActive, timeLeft]);
+  }, [isActive, timeLeft, windowSize]);
 
   const handleTimeSubmit = () => {
     const parts = editValue.split(':');
