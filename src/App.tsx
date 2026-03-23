@@ -280,7 +280,7 @@ export default function App() {
           className="mt-auto flex justify-center pb-4 hover:opacity-80 transition-opacity cursor-pointer w-full"
         >
           <img 
-            src="https://i.ibb.co/fd0xBbnK/ikon.png" 
+            src="https://res.cloudinary.com/dtw8jfk0k/image/upload/v1774287946/ikon_m2x8mj.png" 
             alt="Logo" 
             className="w-32 h-32 object-contain"
             referrerPolicy="no-referrer"

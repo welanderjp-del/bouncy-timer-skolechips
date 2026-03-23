@@ -1,5 +1,5 @@
 {
-  "name": "Skolechips Bouncy Timer",
+  "name": "Skolechips Timer",
   "description": "A timer application featuring a physics-based particle simulation using Matter.js with a bouncy funnel and hatch mechanism.",
   "requestFramePermissions": []
 }
