@@ -139,33 +139,43 @@ export default function App() {
       if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
       
       // Calculate target total based on canvas area
-      // Base target of 2200 for a 1200x800 area to ensure overflow
+      // Since particles are now smaller (18-32), we need more to fill the funnel.
+      // Base target of 1200 for a 1200x800 area to ensure overflow.
       const width = physicsRef.current?.getWidth() || window.innerWidth;
       const height = physicsRef.current?.getHeight() || window.innerHeight;
       const area = width * height;
       const baseArea = 1200 * 800;
-      const targetTotal = Math.max(800, Math.floor((area / baseArea) * 2200));
       
-      const remainingToSpawn = Math.max(1, targetTotal - spawnedCountRef.current);
+      // Scale targetTotal with area to adapt to window size
+      const targetTotal = Math.max(600, Math.floor((area / baseArea) * 1200));
+      // Cap at 3500 to ensure performance even on extreme displays
+      const cappedTargetTotal = Math.min(3500, targetTotal);
       
-      // Aim to reach target at 80% of the remaining time to ensure overflow
-      const interval = (timeLeft * 0.8 * 1000) / remainingToSpawn;
+      const remainingToSpawn = Math.max(1, cappedTargetTotal - spawnedCountRef.current);
       
-      // Cap the interval to ensure it's not too slow (max 100ms for steady flow)
-      // and not too fast (min 15ms)
-      const clampedInterval = Math.min(100, Math.max(15, interval));
+      // Calculate how much time we have until we should be 100% full (at 5% time left)
+      const targetTimeLeft = initialTime * 0.05;
+      const timeUntilFull = Math.max(0.1, timeLeft - targetTimeLeft);
+      
+      // Calculate interval to reach target exactly at the 95% mark (5% left)
+      const interval = (timeUntilFull * 1000) / remainingToSpawn;
+      
+      // Cap the interval to ensure it's not too slow (max 2000ms for very long timers)
+      // and not too fast (min 10ms)
+      const clampedInterval = Math.min(2000, Math.max(10, interval));
 
       spawnIntervalRef.current = setInterval(() => {
-        if (spawnedCountRef.current < targetTotal) {
+        if (spawnedCountRef.current < cappedTargetTotal) {
           physicsRef.current?.spawnParticle();
           spawnedCountRef.current++;
         } else {
-          // If we reached target but time remains, spawn very slowly to maintain overflow
-          if (Math.random() > 0.98) {
+          // Overflow mode: Steady overflow
+          // We use a fixed rate during overflow to ensure it looks active
+          if (Math.random() > 0.5) {
             physicsRef.current?.spawnParticle();
           }
         }
-      }, clampedInterval);
+      }, spawnedCountRef.current < cappedTargetTotal ? clampedInterval : 80); 
     } else if (!isActive && spawnIntervalRef.current) {
       clearInterval(spawnIntervalRef.current);
       spawnIntervalRef.current = null;

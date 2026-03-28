@@ -188,24 +188,29 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
   };
 
   const spawnParticle = () => {
-    const size = Common.random(14, 22);
+    // Scale particle size slightly with window dimensions, but keep it more consistent
+    // Base size 20-35 for a 1200x800 area
+    const baseScale = Math.pow((width * height) / (1200 * 800), 0.25); // Use 4th root for subtler scaling
+    
+    const size = Common.random(20 * baseScale, 35 * baseScale);
+    
     // Wider spawn area to fill the funnel more naturally
-    const x = width / 2 + (Math.random() - 0.5) * (width * 0.6);
+    const x = width / 2 + (Math.random() - 0.5) * (width * 0.7);
     // Start spawning just off-screen, then move higher up as more are spawned
-    const y = Math.max(-1000, -50 - (particlesSpawned * 2));
+    const y = Math.max(-1200, -100 - (particlesSpawned * 1.5));
     const color = COLORS[Math.floor(Math.random() * COLORS.length)];
     
-    // Jelly-like properties: high restitution, low friction, and chamfer for roundedness
+    // Jelly-like properties: high restitution, very low friction, and roundedness
     const commonOptions = {
-      restitution: 0.7, // Bouncier
-      friction: 0.02,
-      frictionAir: 0.02, // More air resistance for "soft" fall
-      density: 0.001,
-      slop: 0.01,
+      restitution: 0.95, // Even bouncier for jelly feel
+      friction: 0.01, // Low friction to slide like jelly
+      frictionAir: 0.02, // Soft fall
+      density: 0.001, // Standard density
+      slop: 0.03, // Allow slight overlap for soft feel
       render: {
         fillStyle: color,
         strokeStyle: '#000000',
-        lineWidth: 1
+        lineWidth: 1.2
       }
     };
 
