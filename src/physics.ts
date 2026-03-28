@@ -19,6 +19,7 @@ export interface PhysicsEngine {
   getHeight: () => number;
   addParticles: (particles: Matter.Body[], shiftX: number) => void;
   destroy: () => void;
+  setChipsMode: (enabled: boolean) => void;
 }
 
 const COLORS = ['#fb7185', '#38bdf8', '#fbbf24', '#34d399', '#818cf8'];
@@ -59,6 +60,11 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
   const funnelBottomY = height * 0.85;
   const openingWidth = width * 0.25;
   const funnelWidth = width * 0.9;
+
+  let particlesSpawned = initialParticlesSpawned;
+  let chipsMode = false;
+
+  const CHIP_IMAGE = 'https://res.cloudinary.com/dtw8jfk0k/image/upload/v1774685343/single-potato-chips-isolated-white-background-with-clipping-path_271326-1147_redigeret_nlrovn.png';
 
   const leftWall = Bodies.rectangle(
     width / 2 - openingWidth / 2 - (funnelWidth - openingWidth) / 4,
@@ -142,8 +148,6 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
   render.bounds.min.y = 0;
   render.bounds.max.y = height;
 
-  let particlesSpawned = initialParticlesSpawned;
-
   const updateZoom = (scale: number) => {
     const centerX = width / 2;
     const centerY = funnelBottomY; // Lock zoom to bottom of funnel
@@ -165,13 +169,16 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
     const allBodies = Composite.allBodies(engine.world);
     const particles = allBodies.filter(body => !body.isStatic);
     
-    // Don't zoom until we have a substantial pile (at least 60 particles)
-    if (particles.length < 60) return height;
+    // Don't zoom until we have a substantial pile
+    // Chips are much larger, so we need fewer to start zooming
+    const zoomThreshold = chipsMode ? 15 : 60;
+    if (particles.length < zoomThreshold) return height;
     
     // Only consider particles that have settled (low velocity) 
     // OR are clearly part of a pile (below the current spawn area).
     // We dynamically adjust the "ignore zone" based on where we are currently spawning.
-    const currentSpawnY = Math.max(-1000, -50 - (particlesSpawned * 2));
+    // This must match the logic in spawnParticle to avoid zooming into the spawn area.
+    const currentSpawnY = Math.max(-2500, -100 - (particlesSpawned * 5.0));
     
     const settledParticles = particles.filter(p => 
       p.position.y > currentSpawnY + 150 && 
@@ -196,8 +203,9 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
     
     // Wider spawn area to fill the funnel more naturally
     const x = width / 2 + (Math.random() - 0.5) * (width * 0.7);
-    // Start spawning just off-screen, then move higher up as more are spawned
-    const y = Math.max(-1200, -100 - (particlesSpawned * 1.5));
+    // Start spawning closer to the screen for faster initial landing, 
+    // then move higher up as more are spawned to stay out of view when zoomed out.
+    const y = Math.max(-2500, -150 - (particlesSpawned * 5.0));
     const color = COLORS[Math.floor(Math.random() * COLORS.length)];
     
     // Jelly-like properties: high restitution, very low friction, and roundedness
@@ -210,15 +218,26 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
       render: {
         fillStyle: color,
         strokeStyle: '#000000',
-        lineWidth: 1.2
+        lineWidth: 1.2,
+        ...(chipsMode ? {
+          sprite: {
+            texture: CHIP_IMAGE,
+            xScale: size / 100, // Assuming 200px source image, scaled to size
+            yScale: size / 100
+          }
+        } : {})
       }
     };
 
-    const shapeType = Common.choose(['circle', 'rect', 'poly', 'tri']);
+    const shapeType = chipsMode ? 'circle' : Common.choose(['circle', 'rect', 'poly', 'tri']);
     let body;
 
     if (shapeType === 'circle') {
-      body = Bodies.circle(x, y, size / 2, commonOptions);
+      // Increase collision radius for chips to match the image visual size
+      // Visual diameter is 2 * size (based on 200px source and size/100 scale)
+      // Setting radius to size * 1.25 to ensure they don't overlap visually
+      const radius = chipsMode ? size * 1.25 : size / 2;
+      body = Bodies.circle(x, y, radius, commonOptions);
     } else if (shapeType === 'rect') {
       body = Bodies.rectangle(x, y, size, size, {
         ...commonOptions,
@@ -317,6 +336,9 @@ export const initPhysics = (container: HTMLElement, initialParticlesSpawned = 0)
     getWidth,
     getHeight,
     addParticles,
-    destroy
+    destroy,
+    setChipsMode: (enabled: boolean) => {
+      chipsMode = enabled;
+    }
   };
 };

@@ -16,6 +16,13 @@ export default function App() {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('02:00');
   const [zoomScale, setZoomScale] = useState(1);
+  const [chipsMode, setChipsMode] = useState(false);
+
+  // Preload chip image
+  useEffect(() => {
+    const img = new Image();
+    img.src = 'https://res.cloudinary.com/dtw8jfk0k/image/upload/v1774685343/single-potato-chips-isolated-white-background-with-clipping-path_271326-1147_redigeret_nlrovn.png';
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -51,6 +58,7 @@ export default function App() {
   useEffect(() => {
     if (canvasRef.current && !physicsRef.current) {
       physicsRef.current = initPhysics(canvasRef.current);
+      physicsRef.current.setChipsMode(chipsMode);
     }
 
     const handleResize = () => {
@@ -62,6 +70,7 @@ export default function App() {
         
         physicsRef.current.destroy();
         physicsRef.current = initPhysics(canvasRef.current, spawnedCount);
+        physicsRef.current.setChipsMode(chipsMode);
         
         const newWidth = canvasRef.current.clientWidth;
         const shiftX = (newWidth - oldWidth) / 2;
@@ -118,8 +127,18 @@ export default function App() {
     setTimeLeft(initialTime);
     setEditValue(formatTime(initialTime));
     spawnedCountRef.current = 0;
+    if (spawnIntervalRef.current) {
+      clearInterval(spawnIntervalRef.current);
+      spawnIntervalRef.current = null;
+    }
     physicsRef.current?.resetHatch();
     physicsRef.current?.clearParticles();
+  };
+
+  const toggleChipsMode = () => {
+    const next = !chipsMode;
+    setChipsMode(next);
+    physicsRef.current?.setChipsMode(next);
   };
 
   const adjustTime = (amount: number) => {
@@ -147,7 +166,14 @@ export default function App() {
       const baseArea = 1200 * 800;
       
       // Scale targetTotal with area to adapt to window size
-      const targetTotal = Math.max(600, Math.floor((area / baseArea) * 1200));
+      let targetTotal = Math.max(600, Math.floor((area / baseArea) * 1200));
+      
+      // Chips are much larger (collision radius is 2.5x standard), so they fill space much faster.
+      // Reduce target count significantly for chips-mode to compensate.
+      if (chipsMode) {
+        targetTotal = Math.max(80, Math.floor(targetTotal * 0.15));
+      }
+      
       // Cap at 3500 to ensure performance even on extreme displays
       const cappedTargetTotal = Math.min(3500, targetTotal);
       
@@ -164,6 +190,8 @@ export default function App() {
       // and not too fast (min 10ms)
       const clampedInterval = Math.min(2000, Math.max(10, interval));
 
+      const overflowInterval = chipsMode ? 250 : 80;
+
       spawnIntervalRef.current = setInterval(() => {
         if (spawnedCountRef.current < cappedTargetTotal) {
           physicsRef.current?.spawnParticle();
@@ -175,7 +203,7 @@ export default function App() {
             physicsRef.current?.spawnParticle();
           }
         }
-      }, spawnedCountRef.current < cappedTargetTotal ? clampedInterval : 80); 
+      }, spawnedCountRef.current < cappedTargetTotal ? clampedInterval : overflowInterval); 
     } else if (!isActive && spawnIntervalRef.current) {
       clearInterval(spawnIntervalRef.current);
       spawnIntervalRef.current = null;
@@ -280,6 +308,23 @@ export default function App() {
           >
             Nulstil
           </button>
+
+          {/* Chips-mode Switch */}
+          <div className="w-full flex items-center justify-center gap-3 px-2 -mt-1">
+            <span className="text-sm font-medium text-[#141414]/60">Chips-mode</span>
+            <button
+              onClick={toggleChipsMode}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                chipsMode ? 'bg-[#fbbf24]' : 'bg-gray-400'
+              }`}
+            >
+              <span
+                className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${
+                  chipsMode ? 'translate-x-5' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
         </div>
 
         {/* Footer Logo */}
