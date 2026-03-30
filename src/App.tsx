@@ -330,8 +330,6 @@ export default function App() {
         {/* Footer Logo */}
         <a 
           href="https://skolechips.dk" 
-          target="_blank" 
-          rel="noopener noreferrer"
           className="mt-auto flex justify-center pb-4 hover:opacity-80 transition-opacity cursor-pointer w-full"
         >
           <img 
