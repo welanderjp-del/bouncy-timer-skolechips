@@ -10,8 +10,8 @@ export default function App() {
   const [isActive, setIsActive] = useState(false);
   const [initialTime, setInitialTime] = useState(120);
   const [windowSize, setWindowSize] = useState({ width: window.innerWidth, height: window.innerHeight });
-  const spawnIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const spawnedCountRef = useRef(0);
+  const timeLeftRef = useRef(timeLeft);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState('02:00');
@@ -104,13 +104,13 @@ export default function App() {
     } else if (timeLeft === 0 && isActive) {
       setIsActive(false);
       physicsRef.current?.removeHatch();
-      if (spawnIntervalRef.current) {
-        clearInterval(spawnIntervalRef.current);
-        spawnIntervalRef.current = null;
-      }
     }
     return () => clearInterval(timer);
   }, [isActive, timeLeft]);
+
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
 
   const handleStart = () => {
     if (timeLeft === 0) return;
@@ -127,10 +127,6 @@ export default function App() {
     setTimeLeft(initialTime);
     setEditValue(formatTime(initialTime));
     spawnedCountRef.current = 0;
-    if (spawnIntervalRef.current) {
-      clearInterval(spawnIntervalRef.current);
-      spawnIntervalRef.current = null;
-    }
     physicsRef.current?.resetHatch();
     physicsRef.current?.clearParticles();
   };
@@ -154,68 +150,58 @@ export default function App() {
 
   // Dynamic spawn rate: adjusts based on current timeLeft and window size
   useEffect(() => {
-    if (isActive && timeLeft > 0) {
-      if (spawnIntervalRef.current) clearInterval(spawnIntervalRef.current);
-      
-      // Calculate target total based on canvas area
-      // Since particles are now smaller (18-32), we need more to fill the funnel.
-      // Base target of 1200 for a 1200x800 area to ensure overflow.
-      const width = physicsRef.current?.getWidth() || window.innerWidth;
-      const height = physicsRef.current?.getHeight() || window.innerHeight;
-      const area = width * height;
-      const baseArea = 1200 * 800;
-      
-      // Scale targetTotal with area to adapt to window size
-      let targetTotal = Math.max(600, Math.floor((area / baseArea) * 1200));
-      
-      // Chips are much larger (collision radius is 2.5x standard), so they fill space much faster.
-      // Reduce target count significantly for chips-mode to compensate.
-      if (chipsMode) {
-        targetTotal = Math.max(80, Math.floor(targetTotal * 0.15));
-      }
-      
-      // Cap at 3500 to ensure performance even on extreme displays
-      const cappedTargetTotal = Math.min(3500, targetTotal);
-      
-      const remainingToSpawn = Math.max(1, cappedTargetTotal - spawnedCountRef.current);
-      
-      // Calculate how much time we have until we should be 100% full (at 5% time left)
-      const targetTimeLeft = initialTime * 0.05;
-      const timeUntilFull = Math.max(0.1, timeLeft - targetTimeLeft);
-      
-      // Calculate interval to reach target exactly at the 95% mark (5% left)
-      const interval = (timeUntilFull * 1000) / remainingToSpawn;
-      
-      // Cap the interval to ensure it's not too slow (max 2000ms for very long timers)
-      // and not too fast (min 10ms)
-      const clampedInterval = Math.min(2000, Math.max(10, interval));
+    let timeoutId: NodeJS.Timeout | null = null;
 
-      const overflowInterval = chipsMode ? 250 : 80;
+    if (isActive && timeLeftRef.current > 0) {
+      const spawn = () => {
+        if (!physicsRef.current) return;
 
-      spawnIntervalRef.current = setInterval(() => {
-        if (spawnedCountRef.current < cappedTargetTotal) {
-          physicsRef.current?.spawnParticle();
-          spawnedCountRef.current++;
-        } else {
-          // Overflow mode: Steady overflow
-          // We use a fixed rate during overflow to ensure it looks active
-          if (Math.random() > 0.5) {
-            physicsRef.current?.spawnParticle();
-          }
+        // Calculate target total based on canvas area
+        const width = physicsRef.current.getWidth();
+        const height = physicsRef.current.getHeight();
+        const area = width * height;
+        const baseArea = 1200 * 800;
+        
+        // Scale targetTotal with area to adapt to window size
+        let targetTotal = Math.max(600, Math.floor((area / baseArea) * 1200));
+        
+        if (chipsMode) {
+          targetTotal = Math.max(80, Math.floor(targetTotal * 0.15));
         }
-      }, spawnedCountRef.current < cappedTargetTotal ? clampedInterval : overflowInterval); 
-    } else if (!isActive && spawnIntervalRef.current) {
-      clearInterval(spawnIntervalRef.current);
-      spawnIntervalRef.current = null;
+        
+        const cappedTargetTotal = Math.min(3500, targetTotal);
+        const remainingToSpawn = Math.max(1, cappedTargetTotal - spawnedCountRef.current);
+        
+        // Calculate how much time we have until we should be 100% full (at 5% time left)
+        const targetTimeLeft = initialTime * 0.05;
+        const timeUntilFull = Math.max(0.1, timeLeftRef.current - targetTimeLeft);
+        
+        // Calculate interval to reach target exactly at the 95% mark (5% left)
+        const interval = (timeUntilFull * 1000) / remainingToSpawn;
+        const clampedInterval = Math.min(2000, Math.max(10, interval));
+        const overflowInterval = chipsMode ? 250 : 80;
+
+        if (spawnedCountRef.current < cappedTargetTotal) {
+          physicsRef.current.spawnParticle();
+          spawnedCountRef.current++;
+          timeoutId = setTimeout(spawn, clampedInterval);
+        } else {
+          // Overflow mode
+          if (Math.random() > 0.5) {
+            physicsRef.current.spawnParticle();
+          }
+          timeoutId = setTimeout(spawn, overflowInterval);
+        }
+      };
+
+      // Start spawning immediately
+      spawn();
     }
 
     return () => {
-      if (spawnIntervalRef.current) {
-        clearInterval(spawnIntervalRef.current);
-        spawnIntervalRef.current = null;
-      }
+      if (timeoutId) clearTimeout(timeoutId);
     };
-  }, [isActive, timeLeft, windowSize]);
+  }, [isActive, chipsMode, initialTime, windowSize]);
 
   const handleTimeSubmit = () => {
     const parts = editValue.split(':');
